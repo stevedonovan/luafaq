@@ -1,0 +1,39 @@
+body {
+	padding-left: 2em;
+    width: 60em;
+	}
+pre {
+    padding: 1em ;
+	background-color: #eeeeff
+	}
+ul {
+       list-style-type: none ;
+       list-style-position: outside ;
+}
+h1, h2, h3 {
+	font-family: Verdana, Geneva, sans-serif ;
+	font-weight: normal ;
+}
+
+h4 {
+    font-weight: bold;
+}
+
+h2 {
+	padding-top: 0.4em ;
+	padding-bottom: 0.4em ;
+	padding-left: 20px ;
+	margin-left: -20px ;
+	color:  #004080 ;
+}
+
+/*
+h3 {
+	padding-left: 8px ;
+	border-left: solid #E0E0FF 1em ;
+}
+*/
+
+a:link { font-weight:bold; color: #004080; text-decoration: none; }
+a:visited { font-weight:bold; color: #006699; text-decoration: none; }
+a:link:hover { text-decoration:underline; }

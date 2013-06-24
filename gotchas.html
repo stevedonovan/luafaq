@@ -1,0 +1,315 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+	<title>Lua Gotchas</title>
+	<style type="text/css"><!--
+body {
+	padding-left: 2em;
+	}
+pre {
+	background-color: #eeeeff
+	}
+a:link { font-weight:bold; color: #004080; text-decoration: none; }
+a:visited { font-weight:bold; color: #006699; text-decoration: none; }
+a:link:hover { text-decoration:underline; }
+
+--></style>
+</head>
+<body>
+<h1  id="T1">Lua Gotchas</h1>
+
+<ul>
+    <li><a href="#T1">1 Calling methods</a></li>
+    <li><a href="#T2">2 Values which are false</a></li>
+    <li><a href="#T3">3 Undeclared variables</a>
+    <ul>
+        <li><a href="#T3.1">3.1 .. are global by default</a></li>
+        <li><a href="#T3.2">3.2 Variables must be declared before use.</a></li>
+    </ul></li>
+    <li><a href="#T4">4 All numbers are floating point</a></li>
+    <li><a href="#T5">5 When does automatic conversion to string occur?</a></li>
+    <li><a href="#T6">6 Tables are both arrays and dictionaries</a>
+    <ul>
+        <li><a href="#T6.1">6.1 Arrays start at one</a></li>
+        <li><a href="#T6.2">6.2 Table keys</a></li>
+        <li><a href="#T6.3">6.3 Undefined field access is a feature</a></li>
+        <li><a href="#T6.4">6.4 Arrays with holes are bad news</a></li>
+        <li><a href="#T6.5">6.5 Element order with pairs() is arbitrary</a></li>
+    </ul></li>
+    <li><a href="#T7">7 When to use parentheses with functions?</a></li>
+    <li><a href="#T8">8 Expressions with multiple values</a>
+    <ul>
+        <li><a href="#T8.1">8.1 Functions can return multiple values</a></li>
+        <li><a href="#T8.2">8.2 A Superficial similarity with Python</a></li>
+        <li><a href="#T8.3">8.3 Multiple Assignments in Declarations</a></li>
+    </ul></li>
+    <li><a href="#T9">9 Values and references</a></li>
+    <li><a href="#T10">10 Using metatables</a>
+    <ul>
+        <li><a href="#T10.1">10.1 __index is a fallback</a></li>
+        <li><a href="#T10.2">10.2 __index can be a table</a></li>
+        <li><a href="#T10.3">10.3 __eq cannot be used to compare arbitrary values</a></li>
+    </ul></li>
+</ul>
+
+
+
+<p>'Gotchas' are Lua features which are often confusing at first, if you are used to other languages.</p>
+
+<p>Here is a short list compiled from the Lua mailing list, particularly by Timothy Hunter.</p>
+
+<h2  id="T1">1 Calling methods</h2>
+
+<p>If you are used to other languages, then <code>obj.method()</code> looks like a method call, but really it is just looking up 'method' in the context of <code>obj</code> and then calling that function. To make a proper method call, use <code>obj:method()</code> which is 'syntactical sugar' for <code>obj.method(obj)</code> - that is, the colon passes the object as the first argument as <code>self</code>.  Common methods encountered in basic Lua programming are the string methods, like <code>s:find("hello")</code> being short for <code>string.find(s,"hello")</code>.</p>
+
+<h2  id="T2">2 Values which are false</h2>
+
+<p>C-like languages regard <code>0</code> as equivalent to <code>false</code>, but this is not true for Lua. Only an explicit <code>false</code> or <code>nil</code> are equivalent to <code>false</code>.  When in doubt, make the condition explicit, e.g. <code>if val == nil then ... end</code> unless the value is actually <code>boolean</code>.</p>
+
+<h2  id="T3">3 Undeclared variables</h2>
+
+<h3  id="T3.1">3.1 .. are global by default</h3>
+
+<p>Like all dynamic languages, you don't have to declare variables. However, the scope of what gets implicitly declared is not the same. For instance, an undeclared variable is local to the function in Python, and you need the keyword <code>global</code> to tell the interpreter to look outside. In Lua, the situation is exactly opposite; unless declared using <code>local</code>, Lua will look up a name in the current environment, which is usually <code>_G</code>.</p>
+
+<p>Also, the value of an undeclared variable is <code>nil</code>, because there is no special <code>undefined</code> value. Since <code>nil</code> may be an acceptable value for a variable, typing errors can bite deep.</p>
+
+<p>In larger programs, this can lead to madness, so people often use a technique which traps undefined global access - see <a href="index.html#T1.6">strict model</a>.</p>
+
+<h3  id="T3.2">3.2 Variables must be declared before use.</h3>
+
+<p>This might seem an obvious point, but in JavaScript function declarations are 'hoisted' so that they can be declared in any order. This also works in Python:</p>
+
+<pre><code>def foo():
+    def bar ():
+        zog()
+    def zog():
+        print "Zog!"
+    bar()
+</code></pre>
+
+<p>but the equivalent Lua does not because <code>zog</code> has not yet been declared:</p>
+
+<pre><code>function foo()
+ local function bar() zog() end
+ local function zog() print "Zog!" end
+ bar()
+end
+</code></pre>
+
+<h2  id="T4">4 All numbers are floating point</h2>
+
+<p>The good news is that any integer up to 2^52 can be represented exactly by a 64-bit double-precision value. But don't expect equality to work always for floating-point values! (This is more a general programming gotcha, since you must become used to finite precision.)</p>
+
+<p>Lua can be compiled only to use integer arithmetic on embedded platforms that lack hardware floating-point support.</p>
+
+<h2  id="T5">5 When does automatic conversion to string occur?</h2>
+
+<p><code>10+"20"</code> does work in Lua, but <code>10=="10"</code> is not true. In an arithmetic expression, Lua will attempt to convert strings to numbers, otherwise you will get a 'attempt to perform arithmetic on a string value'.  Fortunately, string concatenation is a separate operator, so JavaScript-style weirdness does not happen so often: <code>"10".."20"</code> is unambiguously "1020".</p>
+
+<h2  id="T6">6 Tables are both arrays and dictionaries</h2>
+
+<p>Lua tables are the ultimate one-stop-shop of data structures. It can be confusing that a table can behave like both kinds of containers at once, such as <code>{1,2,3,enable=true}</code>. So you will see reference to the array-part and the 'hash' part of a table.</p>
+
+<h3  id="T6.1">6.1 Arrays start at one</h3>
+
+<p>This gets people because starting at zero is more common, and the habit is hard to break. The problem is that <code>t[0] = 1</code> is not considered a problem, but then the length of the array will be off-by-one.  The value is in the table, but is in the 'hash' or 'dictionary' part. The length operator <code>#</code> only applies from 1 to the last non-<code>nil</code> element.</p>
+
+<h3  id="T6.2">6.2 Table keys</h3>
+
+<p>The 'key' in <code>t.key</code> is a constant 'key', not the variable named 'key'. This is because <code>t.key</code> is the same as <code>t["key"]</code>. If you want to index by a variable, say <code>t[key]</code>. This 'quoting' also happens in table constructors, e.g. <code>t={key=1}</code> sets the value of <code>t.key</code>. But, this can only work for valid Lua names that aren't keywords or contain special characters. So you must say <code>t={["for"]=1,...}' and</code>t["for"]`.</p>
+
+<p>JavaScript programmers will be comfortable with Lua tables, but remember there is no distinction between 'undefined' and 'null'.</p>
+
+<h3  id="T6.3">6.3 Undefined field access is a feature</h3>
+
+<p>In many languages, trying to access a non-existent key in a list or dictionary causes an exception; in Lua the result is simply <code>nil</code>. This is unambiguous because <code>nil</code> cannot be usefully put into tables.</p>
+
+<h3  id="T6.4">6.4 Arrays with holes are bad news</h3>
+
+<p>Try not to put <code>nil</code> in arrays. It will work if you know what you're doing, but the length operator <code>#</code> will be confused and standard table functions like <code>table.sort()</code> will complain bitterly.</p>
+
+<p>Sparse arrays have their uses, if you remember not to depend on <code>#</code>:</p>
+
+<pre><code>&gt; t = {}
+&gt; t[1] = 1
+&gt; t[4] = 4
+&gt; t[10] = 10
+&gt; = #t  --&gt; NB!
+1
+&gt; for k,v in pairs(t) do print(k,v) end
+1       1
+4       4
+10      10
+</code></pre>
+
+<h3  id="T6.5">6.5 Element order with pairs() is arbitrary</h3>
+
+<p>Yes, you can use <code>pairs()</code> with an 'array', but don't expect to get the keys in ascending order. That is the first reason for <code>ipairs()</code> which makes that guarantee. The second reason for <code>ipairs()</code> is that it only goes over the 'array' part of a table.</p>
+
+<h2  id="T7">7 When to use parentheses with functions?</h2>
+
+<p>Lua is different in that strings require parentheses if you want to call string methods, such as <code>('%s=%d'):format('hello',42)</code>.</p>
+
+<p>But there are important cases when you can leave out parentheses, such as <code>print 'hello'</code> and <code>myfunc {1,2,3; enable=true}</code>. If the single argument of a function is a string or a table constructor, then they can be safely left out.</p>
+
+<p>(The old-style Python <code>print 'hello'</code> has another meaning, since <code>print</code> is a statement.)</p>
+
+<h2  id="T8">8 Expressions with multiple values</h2>
+
+<p>Expressions can have multiple values, so you can swap two values with one line like so:</p>
+
+<pre><code>x,y = y,x
+</code></pre>
+
+<p>A powerful and unusual feature, but there are several things to be aware of.</p>
+
+<h3  id="T8.1">8.1 Functions can return multiple values</h3>
+
+<p>A Lua function call can return multiple values. A number of the string functions work like this,for instance, <code>string.find</code> will return the start index and end index of the match, plus any <em>captures</em>.</p>
+
+<pre><code>&gt; s = "hello dolly"
+&gt; print(s:find("(dolly)"))
+7       11      dolly
+</code></pre>
+
+<p>(Note that the parentheses in the string pattern have special meaning, like in standard regular expressions.)</p>
+
+<p>It is easy to write a function that returns multiple values:</p>
+
+<pre><code>function sumprod(x,y) return x+y, x*y end
+</code></pre>
+
+<p>(The comma is never an operator in Lua; it is only a delimiter.)</p>
+
+<p>Furthermore, these multiple return values are treated specially in function calls and table constructors. The expression <code>{sumprod(10,20)}</code> is the table <code>{30,200}</code> and <code>print(sumprod(10,20))</code> has the same effect as <code>print(30,200)</code>.</p>
+
+<p>The function <code>unpack</code> goes the other way:</p>
+
+<pre><code>&gt; print(unpack{1,2,3})
+1       2       3
+</code></pre>
+
+<p>This is a powerful and efficient feature but it can bite you. For instance, consider this function that turns a string into hexadecimal bytes:</p>
+
+<pre><code>function escape(s)
+  return s:gsub('.',function(s) return ('%2X'):format(s:byte(1)) end)
+end
+</code></pre>
+
+<p>But there is a gotcha:</p>
+
+<pre><code>&gt; = escape(' ')
+20      1
+</code></pre>
+
+<p><code>string.gsub</code> returns the result of the substitution plus the number of substitutions made - so this function can mess up code that is expecting exactly one return code.  The best solution is to enclose the expression in parentheses:</p>
+
+<pre><code>function escape(s)
+  return (s:gsub('.',function(s) return ('%2X'):format(s:byte(1)) end))
+end
+</code></pre>
+
+<p>(Or you could assign the result of <code>gsub</code> to a local variable and return that.)</p>
+
+<p>The rule for expanding multiple results only works for the <em>last</em> argument, so be careful with expressions like <code>{f(),g()}</code> - if <code>f()</code> returned multiple values, then only the <em>first</em> one would be used. (There has been a <a href="http://lua-users.org/lists/lua-l/2009-08/msg00242.html">proposal</a> for an operator that would 'unpack' multiple values in any position.)</p>
+
+<h3  id="T8.2">8.2 A Superficial similarity with Python</h3>
+
+<p>Note that the following statement works in both Lua and Python, but in very different ways:</p>
+
+<pre><code>x,y = fun()
+</code></pre>
+
+<p>In Lua, the function <code>fun</code> returns two values, in Python it returns one <code>tuple</code> value, which it then helpfully unpacks in this context. This is one of the many little things that makes Lua the 'speed queen' of dynamic languages, since there is no extra hidden overhead with this assignment.</p>
+
+<p>A Python programmer may expect this to also implicitly unpack a table:</p>
+
+<pre><code>x,y = {1,2}
+</code></pre>
+
+<p>But there is no such magic in Lua, and you must explicitly use <code>unpack</code>. It's a gotcha because it is not an error; <code>x</code> becomes the table value, and <code>y</code> becomes <code>nil</code>.</p>
+
+<h3  id="T8.3">8.3 Multiple Assignments in Declarations</h3>
+
+<p>In most languages, several variables can be declared and assigned at the same time:</p>
+
+<pre><code>var x = 1, y = 2
+</code></pre>
+
+<p>In Lua the equivalent is</p>
+
+<pre><code>local x,y = 1,2
+</code></pre>
+
+<p>and you will get an 'unexpected symbol near '='' error if you try the first syntax.</p>
+
+<h2  id="T9">9 Values and references</h2>
+
+<p>If <code>x=10</code> and <code>y=10</code> then we know that <code>x==y</code>, but the same is not true for tables and other objects:</p>
+
+<pre><code>local t1,t2 = {},{}
+print(t1 == t2)
+==&gt; false
+</code></pre>
+
+<p><code>t1</code> and <code>t2</code> are <em>distinct</em> values; tables are never compared 'element by element'. It is straightforward to do this in Lua; for example see how <code>deepcompare</code> is defined in <a href="http://github.com/stevedonovan/Penlight/blob/master/lua/pl/tablex.lua">Penlight</a></p>
+
+<p>In the same way <code>t1 = t2</code> does not make a copy of <code>t2</code>. The variable <code>t1</code> will become another reference to the value of <code>t2</code>. Assigning to <code>t1[1]</code> will change <code>t2[1]</code>, because they simply point to the same object.</p>
+
+<p>Now, how does string equality work? Unlike Java, <code>s1==s2</code> <em>will</em> work on equal strings, character by character. This is because there is only ever one instance of any particular string stored in memory, so comparison is very quick (this is called <em>interning</em>), for an extra cost of string creation.  This can work because strings are 'immutable', there is no way in Lua to modify the contents of a string directly.</p>
+
+<p>The same lessons taught to Java programmers apply here: building up a large string by concatenation creates a lot of temporary strings that can stress the garbage collector. The Lua way is to put the strings into a table and then use <code>table.concat</code>.</p>
+
+<p>If you are a C programmer, this may seem massively inefficient, but the answer is that Lua strings are not the right data structure for modification.  Representing a string as a table of string fragments (sometimes called a 'rope') is much more efficient.</p>
+
+<h2  id="T10">10 Using metatables</h2>
+
+<p>Lua has powerful meta-programming abilities through mechanism of <a href="http://www.lua.org/pil/13.html">metatables</a>. Different table values can be given common behaviour by giving them the same metatable, and so you can think of it as a generalisation of the 'class' concept in other dynamic languages.</p>
+
+<h3  id="T10.1">10.1 __index is a fallback</h3>
+
+<p>The metatable can have <em>metamethods</em> like <code>__index</code>. This is called when table indexing fails, and in this example forces a table index to return a default zero value if out-of-bounds.</p>
+
+<pre><code>t = {1,2,3}
+
+setmetatable(t,{
+  __index = function(t,k) return 0 end
+})
+
+print(t[1],t[5])
+---&gt; 1   0
+</code></pre>
+
+<p>Cute, and incredibly powerful. In Lua 4.0 the equivalent concept was called a 'fallback' and that word describes the behaviour very well. A common misunderstanding is that <code>__index</code> overrides all table accesses, but this is not so.  In a similar way, <code>__newindex</code> only kicks in if the key does not exist in the table. (If you do need to do something for each table key access, then <em>proxy tables</em> are the suggested solution. This technique involves deliberately keeping the table empty, and keeping the implementation data separate. Then <code>__index</code> will always fire and you can return whatever you like - this can be used to implement true <em>properties</em> with getters and setters.)</p>
+
+<h3  id="T10.2">10.2 __index can be a table</h3>
+
+<p>A common way to implement classes looks like this:</p>
+
+<pre><code>C = {}
+C.__index = C
+
+function C:m1() return self:m2() end  -- note the implicit self with : shortcut
+function C:m2() return self.value end
+</code></pre>
+
+<p>To construct a new instance of <code>C</code>, you make a new table and set its metatable to <code>C</code>.</p>
+
+<pre><code>function C.new(value)
+  local obj = setmetatable({},C)
+  obj.value = value
+  return obj
+end
+</code></pre>
+
+<p>The key to this trick is <code>C.__index = C</code>; people often think that merely <em>putting</em> functions in the metatable will allow objects to access them, but all unknown field accesses have to go through <code>__index</code>, and this assignment lets objects find their functions in the metatable.</p>
+
+<h3  id="T10.3">10.3 __eq cannot be used to compare arbitrary values</h3>
+
+<p>Looking at the <a href="http://www.lua.org/manual/5.1/manual.html#2.8">manual</a> shows you a full list of the available metamethods. For instance, you can override the usual equality operation and make it do something else, for instance do a true element-by-element comparison for lists.</p>
+
+<p>There is a gotcha with <code>__eq</code>; unlike the arithmetical metamethods, it insists that both arguments have the same metatable.</p>
+
+</body></html>
