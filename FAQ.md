@@ -277,7 +277,7 @@ Lua tables naturally express sparse arrays:
 
     t = {[1] = 200, [2] = 300, [6] = 400, [13] = 500}
 
-n this case, `#t` is unreliable, since then length operator `#` is only defined for non-sparse arrays (arrays 
+In this case, `#t` is unreliable, since then length operator `#` is only defined for non-sparse arrays (arrays 
 without holes). If you wish to keep track of the size of a sparse array, then it is best to keep and increment a 
 counter:
 
